@@ -77,6 +77,17 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:va
 .task-card.s-done{border-left-color:#16a34a}
 .task-card.s-delayed{border-left-color:#dc2626}
 .task-card.s-yts{border-left-color:#94a3b8}
+/* Sub-task styles */
+.subtask-card{border-left:3px solid #a5f3fc;background:#f8fdff;border-radius:var(--r);padding:8px 10px;margin-bottom:6px;position:relative}
+.subtask-card.s-done{border-left-color:#16a34a;background:#f0fdf4}
+.subtask-card.s-delayed{border-left-color:#dc2626;background:#fff1f2}
+.subtask-card.s-inprog{border-left-color:#1e7a8c;background:#ecfeff}
+.subtask-header{display:flex;align-items:center;gap:8px;margin-bottom:4px}
+.subtask-num{width:20px;height:20px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0}
+.subtask-title{font-size:12px;font-weight:700;color:var(--navy);flex:1}
+.subtask-meta{display:flex;gap:8px;font-size:10px;color:var(--text2);align-items:center;flex-wrap:wrap}
+.parent-badge{background:#ecfeff;color:#155e75;border:1px solid #a5f3fc;border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700}
+.has-subtasks-badge{background:#ecfeff;color:#0891b2;border:1px solid #a5f3fc;border-radius:20px;padding:2px 8px;font-size:9px;font-weight:700;white-space:nowrap}
 .tc-top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:8px}
 .tc-title{font-size:14px;font-weight:700;line-height:1.3;flex:1;color:var(--navy)}
 .badge{font-size:10px;padding:4px 10px;border-radius:20px;white-space:nowrap;font-weight:700}
@@ -298,6 +309,7 @@ textarea.field-input{resize:vertical;min-height:64px}
     <div class="tabs">
       <button class="tab active" onclick="setTab('all',this)">All Tasks</button>
       <button class="tab" onclick="setTab('projects',this)">Projects</button>
+      <button class="tab" onclick="setTab('post',this)">Post Approval</button>
       <button class="tab" onclick="setTab('person',this)">By Person</button>
       <button class="tab" onclick="setTab('priority',this)">By Priority</button>
       <button class="tab" onclick="setTab('mine',this)">Mine</button>
@@ -340,9 +352,30 @@ textarea.field-input{resize:vertical;min-height:64px}
     <!-- Basic Info -->
     <div class="form-section"><span class="form-section-icon">&#128196;</span> Project Info</div>
     <div class="field-row"><div class="field-label">Project *</div><select class="field-input" id="f-project" onchange="onProjectChange(this.value)"></select></div>
-    <div class="field-row"><div class="field-label">Task Title *</div><input class="field-input" id="f-title" placeholder="e.g. DTCP Layout Plan Submission"/></div>
-    <div class="field-row"><div class="field-label">Category</div>
-      <select class="field-input" id="f-category"></select>
+    <div class="field-row">
+      <div class="field-label">Category</div>
+      <select class="field-input" id="f-category" onchange="onCategoryChange(this.value)"></select>
+    </div>
+    <!-- Sub-task step picker — shown when category has a workflow template -->
+    <div id="subtask-picker" style="display:none;margin-bottom:4px">
+      <div class="field-label" style="margin-bottom:6px">Task / Step</div>
+      <select class="field-input" id="f-step-picker" onchange="onStepPickerChange(this.value)" style="margin-bottom:6px">
+        <option value="">— Select step or type custom below —</option>
+      </select>
+    </div>
+    <div class="field-row">
+      <div class="field-label">Task Title *</div>
+      <input class="field-input" id="f-title" placeholder="e.g. LPA Submission" oninput="onTitleInput(this.value)"/>
+    </div>
+    <!-- Workflow preview — shown when title/category matches a template -->
+    <div id="subtask-preview" style="display:none;margin-bottom:12px;border-radius:var(--r);padding:10px 12px;border:1.5px solid #a5f3fc;background:#ecfeff">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:14px">⚡</span>
+        <span style="font-size:12px;font-weight:800;color:#155e75" id="subtask-preview-title">Workflow</span>
+        <span style="margin-left:auto;font-size:10px;font-weight:700;color:#0891b2;background:#fff;padding:2px 8px;border-radius:20px;border:1px solid #a5f3fc" id="subtask-total-days"></span>
+      </div>
+      <div id="subtask-preview-list" style="font-size:11px;color:#155e75;max-height:220px;overflow-y:auto"></div>
+      <div style="font-size:10px;color:#0891b2;margin-top:6px;font-weight:600">📌 Save to auto-create all micro-tasks · same assignee · sequential dates</div>
     </div>
     <!-- Assignment -->
     <div class="form-section"><span class="form-section-icon">&#128100;</span> Assignment</div>
@@ -414,6 +447,13 @@ textarea.field-input{resize:vertical;min-height:64px}
       <button class="btn gold" onclick="pushAllData()">&#8679; Upload All Data to Firebase</button>
     </div>
     <div class="sync-row"><div class="sdot" id="sync-dot"></div><span id="sync-msg">Not connected yet</span></div>
+    <!-- Archive -->
+    <div class="form-section" style="margin-top:24px">&#128451; Data Archive</div>
+    <div class="cfg-hint" style="margin-bottom:10px">Export completed tasks to Excel before archiving. Keeps your database clean and free.</div>
+    <div class="action-row">
+      <button class="btn" onclick="exportTasksExcel()">&#128196; Export All to Excel</button>
+      <button class="btn" onclick="openArchivePanel()">&#128451; Archive Old Tasks</button>
+    </div>
     <!-- Projects -->
     <div class="form-section" style="margin-top:24px">&#127970; Projects</div>
     <div id="project-list"></div>
@@ -565,6 +605,15 @@ function doPost(e) {
   <div class="panel-body" id="report-body"></div>
 </div>
 
+<!-- Archive Panel -->
+<div class="panel" id="archive-panel">
+  <div class="panel-hdr">
+    <button class="back-btn" onclick="closePanel('archive-panel')">&#8592;</button>
+    <span class="panel-title">Archive & Export</span>
+  </div>
+  <div class="panel-body" id="archive-body"></div>
+</div>
+
 <!-- Milestone Panel -->
 <div class="panel" id="milestone-panel">
   <div class="panel-hdr">
@@ -647,7 +696,218 @@ const BUILDING_TYPES={
   }
 };
 
-// Compute planned dates for each milestone given LPA start date and building type
+// ═══════════════════════════════════════════
+// TASK TEMPLATES — Standard workflow sub-tasks
+// ═══════════════════════════════════════════
+const TASK_TEMPLATES={
+
+  // ── PRE-APPROVAL WORKFLOWS ───────────────────────────────────
+
+  'LPA Submission':{
+    category:'DTCP Approval', totalDays:24, dept:'DTCP CBE', color:'#1e7a8c', phase:'pre',
+    subtasks:[
+      {title:'Prepare Documentation Checklist', days:3, note:'Compile all required documents per DTCP CBE checklist'},
+      {title:'SWP Submission',                  days:2, note:'Submit Site Work Plan to DTCP CBE'},
+      {title:'Site Inspection',                 days:7, note:'DTCP CBE site inspection'},
+      {title:'Queries Response',                days:7, note:'Address queries raised by DTCP CBE'},
+      {title:'Supervisor Approval',             days:2, note:'Approval by DTCP Supervisor'},
+      {title:'JD Approval',                     days:3, note:'Joint Director approval — DTCP CBE'},
+    ]
+  },
+
+  'Chennai FWD':{
+    category:'DTCP Approval', totalDays:24, dept:'DTCP CBE → Chennai', color:'#1e7a8c', phase:'pre',
+    subtasks:[
+      {title:'Prepare Documentation Checklist', days:3, note:'Compile all required documents'},
+      {title:'SWP Submission',                  days:2, note:'Submit to DTCP CBE'},
+      {title:'Site Inspection',                 days:7, note:'DTCP CBE site inspection'},
+      {title:'Queries Response',                days:7, note:'Address DTCP queries'},
+      {title:'Supervisor Approval',             days:2, note:'DTCP Supervisor approval'},
+      {title:'JD Approval',                     days:3, note:'Joint Director approval'},
+    ]
+  },
+
+  'DTCP TC':{
+    category:'DTCP Approval', totalDays:28, dept:'DTCP Chennai', color:'#7c3aed', phase:'pre',
+    subtasks:[
+      {title:'Technical Scrutiny', days:7, note:'Technical scrutiny of drawings — DTCP Chennai'},
+      {title:'Queries Response',   days:7, note:'Address technical queries raised by DTCP Chennai'},
+      {title:'JD Approval',        days:7, note:'Joint Director approval — DTCP Chennai'},
+      {title:'Director Approval',  days:7, note:'Director of Town and Country Planning approval'},
+    ]
+  },
+
+  'PP':{
+    category:'DTCP Approval', totalDays:20, dept:'DTCP CBE', color:'#0891b2', phase:'pre',
+    subtasks:[
+      {title:'OSR Buyback Demand',  days:5, note:'Raise OSR (Open Space Reservation) buyback demand'},
+      {title:'OSR Buyback Payment', days:2, note:'Pay OSR buyback amount to DTCP'},
+      {title:'PP Demand',           days:7, note:'Planning Permission demand notice from DTCP'},
+      {title:'PP Payment',          days:3, note:'Pay PP fees to DTCP CBE'},
+      {title:'PP Issuance',         days:3, note:'Collect Planning Permission certificate'},
+    ]
+  },
+
+  'BL':{
+    category:'Building Plan', totalDays:46, dept:'CCMC CBE', color:'#16a34a', phase:'pre',
+    subtasks:[
+      {title:'Online Submission by LBS', days:2,  note:'Submit via LBS portal — confirm CCMC zone (East / West / North / South / Central)'},
+      {title:'Site Inspection — AE',     days:7,  note:'Inspection by Assistant Engineer, CCMC'},
+      {title:'Site Inspection — ATPO',   days:7,  note:'Inspection by Assistant Town Planning Officer'},
+      {title:'Site Inspection — TPO',    days:7,  note:'Inspection by Town Planning Officer'},
+      {title:'TPO Approval',             days:5,  note:'Town Planning Officer approval'},
+      {title:'DC Approval',              days:3,  note:'Deputy Commissioner approval — CCMC'},
+      {title:'Commissioner Approval',    days:7,  note:'CCMC Commissioner approval'},
+      {title:'BL Demand Raise',          days:3,  note:'Building Licence fee demand raised'},
+      {title:'BL Payment',               days:3,  note:'Pay Building Licence fees to CCMC'},
+      {title:'Signed BL Copy',           days:2,  note:'Collect signed Building Licence document'},
+    ]
+  },
+
+  'RERA':{
+    category:'RERA Filing', totalDays:26, dept:'TNRERA', color:'#c9922a', phase:'pre',
+    subtasks:[
+      {title:'RERA Checklist Preparation', days:3, note:'Prepare all documents per TNRERA checklist'},
+      {title:'RERA Submission',            days:2, note:'Submit RERA registration application online'},
+      {title:'RERA Queries Response',      days:7, note:'Address queries from TNRERA'},
+      {title:'Scrutiny Officer Approval',  days:7, note:'Approval by TNRERA Scrutiny Officer'},
+      {title:'Committee Member Approval',  days:7, note:'Approval by TNRERA Committee Member'},
+      {title:'RERA Form C Issuance',       days:2, note:'Collect RERA Registration Certificate (Form C) — project APPROVED'},
+    ]
+  },
+
+  // ── POST-APPROVAL WORKFLOWS ──────────────────────────────────
+
+  'Completion Certificate':{
+    category:'Post Approval', totalDays:22, dept:'CCMC CBE', color:'#0891b2', phase:'post',
+    subtasks:[
+      {title:'Application Submission', days:1,  note:'Submit Completion Certificate application to CCMC'},
+      {title:'Site Inspection',        days:7,  note:'CCMC site inspection for completion'},
+      {title:'Queries Reply',          days:7,  note:'Address queries raised by CCMC'},
+      {title:'CC Issuance',            days:7,  note:'Collect signed Completion Certificate from CCMC'},
+    ]
+  },
+
+  'EB Connection':{
+    category:'EB Connection', totalDays:72, dept:'TANGEDCO', color:'#d97706', phase:'post',
+    prereq:'Completion Certificate',
+    prereqNote:'Completion Certificate must be obtained before EB Connection application',
+    subtasks:[
+      {title:'Application Preparation', days:7,  note:'Prepare all EB connection documents — CC copy required'},
+      {title:'Application Submission',  days:7,  note:'Submit to TANGEDCO office with Completion Certificate'},
+      {title:'Scrutiny',                days:15, note:'Document scrutiny by TANGEDCO'},
+      {title:'Inspection',              days:5,  note:'Site inspection by TANGEDCO engineer'},
+      {title:'Estimate Approval',       days:10, note:'Approve work estimate'},
+      {title:'Demand Payment',          days:15, note:'Pay demand amount to TANGEDCO'},
+      {title:'Work Execution',          days:10, note:'Execution of EB connection work'},
+      {title:'Energising',              days:3,  note:'Final energising of connection'},
+    ]
+  }
+
+};
+
+// Check if a task matches a template — by title OR category
+function getTaskTemplate(title, category){
+  if(!title&&!category) return null;
+  const t=(title||'').trim().toLowerCase();
+  const c=(category||'').trim().toLowerCase();
+  for(const key of Object.keys(TASK_TEMPLATES)){
+    const k=key.toLowerCase();
+    // Match by title contains key, or category exactly equals key or template category
+    const tpl=TASK_TEMPLATES[key];
+    const tplCat=(tpl.category||'').toLowerCase();
+    if(t.includes(k)) return{key, tpl};
+    if(c===k) return{key, tpl};
+    if(c===tplCat&&tplCat) return{key, tpl};
+  }
+  return null;
+}
+
+// Generate sub-tasks for a parent task
+function generateSubtasks(parentTask){
+  const match=getTaskTemplate(parentTask.title, parentTask.category);
+  if(!match) return [];
+  const subtasks=[];
+  let cursor=parentTask.planStart||getToday();
+  const parentId=parentTask.taskId;
+  const tpl=match.tpl;
+  tpl.subtasks.forEach(function(def,i){
+    const planStart=cursor;
+    const planFinish=addDays(planStart,def.days);
+    cursor=planFinish;
+    subtasks.push({
+      taskId:'T'+Date.now()+'_ST'+i+'_'+Math.random().toString(36).slice(2,6),
+      project:parentTask.project,
+      title:def.title,
+      category:tpl.category||parentTask.category||'',
+      assignedTo:parentTask.assignedTo||'',
+      priority:parentTask.priority||'Medium',
+      status:'Yet to Start',
+      planStart,
+      planFinish,
+      targetDur:def.days,
+      actualStart:'',actualFinish:'',actualDur:null,
+      remarks:def.note||'',
+      lastUpdated:new Date().toISOString(),
+      parentId,
+      isSubtask:true,
+      subtaskIndex:i,
+      dept:tpl.dept||'',
+      milestoneLink:match.key  // which milestone this maps to
+    });
+  });
+  return subtasks;
+}
+
+// Auto-update milestone status when sub-tasks change
+function syncMilestoneFromSubtasks(proj, milestoneKey){
+  if(!proj||!milestoneKey) return;
+  const ms=getMilestones(proj);
+  const msIdx=ms.findIndex(function(m){
+    return m.name.toLowerCase()===milestoneKey.toLowerCase()||
+           m.name.toLowerCase().includes(milestoneKey.toLowerCase().split(' ')[0]);
+  });
+  if(msIdx<0) return;
+  // Find parent task for this milestone category
+  const parentTasks=tasks.filter(function(t){
+    return t.project===proj&&!t.isSubtask&&
+      (t.category||'').toLowerCase()===milestoneKey.toLowerCase();
+  });
+  if(!parentTasks.length) return;
+  let allDone=true, anyActive=false, anyDelayed=false;
+  parentTasks.forEach(function(p){
+    const subs=getSubtasks(p.taskId);
+    if(!subs.length) return;
+    const done=subs.filter(function(s){return(s.status||'').toLowerCase()==='completed';}).length;
+    const delayed=subs.filter(function(s){return(s.status||'').toLowerCase()==='delayed';}).length;
+    const active=subs.filter(function(s){return(s.status||'').toLowerCase()==='in progress';}).length;
+    if(done<subs.length) allDone=false;
+    if(active>0) anyActive=true;
+    if(delayed>0) anyDelayed=true;
+  });
+  const today=getToday();
+  let newStatus=ms[msIdx].status;
+  if(allDone){newStatus='Completed'; if(!ms[msIdx].date) ms[msIdx].date=today;}
+  else if(anyDelayed) newStatus='Delayed';
+  else if(anyActive) newStatus='In Progress';
+  if(newStatus!==ms[msIdx].status){
+    ms[msIdx].status=newStatus;
+    saveMilestones();
+    pushMilestones(proj);
+  }
+}
+
+// Get all sub-tasks of a parent
+function getSubtasks(parentId){
+  return tasks.filter(function(t){return t.parentId===parentId;})
+    .sort(function(a,b){return(a.subtaskIndex||0)-(b.subtaskIndex||0);});
+}
+
+// Get parent task
+function getParentTask(task){
+  if(!task.parentId) return null;
+  return tasks.find(function(t){return t.taskId===task.parentId;})||null;
+}
 function computePlannedDates(bType, lpaStart){
   if(!bType||!lpaStart||!BUILDING_TYPES[bType])return[];
   const defs=BUILDING_TYPES[bType].milestones;
@@ -694,7 +954,7 @@ function getTotalPlannedDays(bType){
 }
 
 const MILESTONE_NAMES=['LPA Submission','Chennai FWD','DTCP TC','PP','BL','RERA']; // legacy fallback
-let tasks=[],projects=[],members=[],categories=[],milestones={},projectTimelines={},projectMeta={},currentFilter="All",currentNav="list",currentTab="all",editingId=null;
+let tasks=[],projects=[],members=[],categories=[],milestones={},projectTimelines={},projectMeta={},currentFilter='All',currentNav='list',currentTab='all',editingId=null,showCompletedProjects=false;
 
 const DEMO=[
   {taskId:"T001",project:"Atlantic",title:"DTCP Layout Plan Submission",category:"DTCP Approval",assignedTo:"Thirumal",priority:"High",status:"Delayed",planStart:"2026-03-01",planFinish:"2026-03-28",targetDur:27,actualStart:"2026-03-01",actualFinish:"",actualDur:null,remarks:"Awaiting revised site plan"},
@@ -908,12 +1168,30 @@ function bkey(s){return BK[(s||'').toLowerCase()]||'b-pending'}
 function getToday(){return new Date().toISOString().slice(0,10)}
 function initials(n){return(n||'?').split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2)}
 
+// Post Approval categories — tasks that belong in this tab
+const POST_APPROVAL_CATS=['EB Connection','Water Connection','WATCO','Fire NOC','AAI NOC','Completion Certificate','Post Approval'];
+
+function isPostApproval(task){
+  const cat=(task.category||'').toLowerCase();
+  const title=(task.title||'').toLowerCase();
+  return POST_APPROVAL_CATS.some(c=>cat===c.toLowerCase()||title.includes(c.toLowerCase()));
+}
+
 function getVisibleTasks(){
   let t=[...tasks];const today=getToday();const cfg=getConfig();
+
+  // By default, hide tasks from RERA-approved/completed projects
+  if(!showCompletedProjects){
+    t=t.filter(function(x){
+      return !isApprovalCompleted(x.project);
+    });
+  }
+
   if(currentNav==='today')t=t.filter(x=>x.planStart===today||x.planFinish===today);
   else if(currentNav==='overdue')t=t.filter(x=>x.planFinish&&x.planFinish<today&&(x.status||'').toLowerCase()!=='completed');
   else if(currentNav==='done')t=t.filter(x=>(x.status||'').toLowerCase()==='completed');
   if(currentTab==='mine'){const me=cfg.name;if(me)t=t.filter(x=>(x.assignedTo||'').toLowerCase()===me.toLowerCase());}
+  if(currentTab==='post')t=t.filter(x=>isPostApproval(x));
   if(currentFilter!=='All')t=t.filter(x=>x.project===currentFilter);
   return t;
 }
@@ -921,28 +1199,52 @@ function getVisibleTasks(){
 function render(){renderFilters();renderStats();renderMainContent();renderProjectDropdown();renderDatalist();renderProjectList();renderMemberList();renderCategoryDropdown();renderCategoryList();}
 function renderFilters(){
   const bar=document.getElementById('filter-bar');
-  if(currentTab==='person'||currentTab==='priority'||currentTab==='projects'){bar.style.display='none';return}
+  if(currentTab==='person'||currentTab==='priority'||currentTab==='projects'||currentTab==='post'){bar.style.display='none';return}
   bar.style.display='';
-  bar.innerHTML=['All',...projects].map(x=>`<div class="chip${currentFilter===x?' active':''}" onclick="setFilter('${esc(x)}')">${esc(x)}</div>`).join('');
+  // Split projects into ongoing and completed
+  const ongoingProjects=projects.filter(function(p){return !isApprovalCompleted(p);});
+  const completedProjects=projects.filter(function(p){return isApprovalCompleted(p);});
+  const visibleProjects=showCompletedProjects?projects:ongoingProjects;
+  let html=['All',...visibleProjects].map(function(x){
+    return'<div class="chip'+(currentFilter===x?' active':'')+'" onclick="setFilter(\''+esc(x)+'\')">'+esc(x)+'</div>';
+  }).join('');
+  // Toggle chip
+  if(completedProjects.length>0){
+    html+=showCompletedProjects
+      ?'<div class="chip active" onclick="toggleCompletedProjects()" style="background:#16a34a;color:#fff;border-color:#16a34a">✅ Hide Completed ('+completedProjects.length+')</div>'
+      :'<div class="chip" onclick="toggleCompletedProjects()" style="border:1.5px dashed #16a34a;color:#16a34a">+ Show Completed ('+completedProjects.length+')</div>';
+  }
+  bar.innerHTML=html;
+}
+
+function toggleCompletedProjects(){
+  showCompletedProjects=!showCompletedProjects;
+  // If hiding and current filter is a completed project, reset to All
+  if(!showCompletedProjects&&currentFilter!=='All'&&isApprovalCompleted(currentFilter)){
+    currentFilter='All';
+  }
+  render();
 }
 function renderStats(){
   const t=getVisibleTasks();
   const cnt=s=>t.filter(x=>(x.status||'').toLowerCase()===s.toLowerCase()).length;
   const approvedProjects=projects.filter(p=>isApprovalCompleted(p)).length;
+  const ongoingProjects=projects.filter(p=>!isApprovalCompleted(p)).length;
   const late=t.filter(x=>getCompletionStatus(x)==='late').length;
   document.getElementById('stats-row').innerHTML=`
-    <div class="sc-label">Project Overview</div>
+    <div class="sc-label">${showCompletedProjects?'All Projects':'Ongoing Projects'}</div>
     <div class="sc-grid">
-      <div class="sc-item"><div class="sc-num c-amber">${cnt('Pending')+cnt('In Progress')}</div><div class="sc-txt">Active</div></div>
+      <div class="sc-item"><div class="sc-num c-amber">${cnt('Pending')+cnt('In Progress')+cnt('Yet to Start')}</div><div class="sc-txt">Active</div></div>
       <div class="sc-item"><div class="sc-num c-green">${cnt('Completed')}</div><div class="sc-txt">Done</div></div>
       <div class="sc-item"><div class="sc-num c-blue">${approvedProjects}</div><div class="sc-txt">Approved</div></div>
       <div class="sc-item"><div class="sc-num c-red">${late}</div><div class="sc-txt">Delayed</div></div>
     </div>`;
 }
 function renderMainContent(){
-  if(currentTab==='projects')renderProjectsView();
-  else if(currentTab==='person')renderPersonView();
-  else if(currentTab==='priority')renderPriorityView();
+  if(currentTab==='projects') renderProjectsView();
+  else if(currentTab==='person') renderPersonView();
+  else if(currentTab==='priority') renderPriorityView();
+  else if(currentTab==='post') renderPostApprovalView();
   else renderTaskList();
 }
 // ── Project Timeline helpers ──
@@ -1027,7 +1329,22 @@ function allMsDone(proj){return getMilestones(proj).every(m=>m.status==='Complet
 function renderProjectsView(){
   const el=document.getElementById('main-content');
   if(!projects.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">&#127970;</div><div class="empty-text">No projects yet</div></div>';return;}
-  el.innerHTML='<div style="padding:12px 0 100px">'+projects.map(proj=>{
+
+  const ongoingProjects=projects.filter(function(p){return !isApprovalCompleted(p);});
+  const completedProjects=projects.filter(function(p){return isApprovalCompleted(p);});
+  const visibleProjects=showCompletedProjects?projects:ongoingProjects;
+
+  // Toggle bar at top
+  let toggleBar='<div style="padding:8px 12px 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">';
+  toggleBar+='<span style="font-size:12px;font-weight:700;color:var(--navy)">'+ongoingProjects.length+' ongoing</span>';
+  if(completedProjects.length>0){
+    toggleBar+=showCompletedProjects
+      ?'<span onclick="toggleCompletedProjects()" style="cursor:pointer;font-size:11px;font-weight:700;color:#16a34a;background:#f0fdf4;border:1.5px solid #bbf7d0;padding:4px 12px;border-radius:20px">✅ '+completedProjects.length+' Approved — tap to hide</span>'
+      :'<span onclick="toggleCompletedProjects()" style="cursor:pointer;font-size:11px;font-weight:700;color:#16a34a;background:#fff;border:1.5px dashed #16a34a;padding:4px 12px;border-radius:20px">+ Show '+completedProjects.length+' Approved</span>';
+  }
+  toggleBar+='</div>';
+
+  el.innerHTML=toggleBar+'<div style="padding:4px 0 100px">'+visibleProjects.map(proj=>{
     const tl=projTimelineProgress(proj);
     const ms=getMilestones(proj);
     const projTasks=tasks.filter(t=>t.project===proj);
@@ -1457,6 +1774,112 @@ function updateMilestone(proj,idx,field,val){
   pushMilestones(proj);
 }
 
+function renderPostApprovalView(){
+  const today=getToday();
+  const el=document.getElementById('main-content');
+  // Get all post-approval tasks grouped by project
+  const postTasks=tasks.filter(isPostApproval);
+  if(!postTasks.length){
+    el.innerHTML='<div class="empty-state"><div class="empty-icon">⚡</div><div class="empty-text">No post-approval tasks yet</div><div style="font-size:12px;color:var(--text2);margin-top:8px">Add tasks like "EB Connection" or "Water Connection"<br>to see them here</div></div>';
+    return;
+  }
+
+  // Summary strip
+  const total=postTasks.length;
+  const done=postTasks.filter(t=>(t.status||'').toLowerCase()==='completed').length;
+  const active=postTasks.filter(t=>(t.status||'').toLowerCase()==='in progress').length;
+  const overdue=postTasks.filter(t=>t.planFinish&&t.planFinish<today&&(t.status||'').toLowerCase()!=='completed').length;
+
+  let html=`<div style="padding:8px 12px 0">
+    <div style="background:var(--hdr-grad);border-radius:var(--rl);padding:12px 14px;color:#fff;margin-bottom:12px">
+      <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Post Approval Tasks</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+        <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px 4px;text-align:center"><div style="font-size:18px;font-weight:800;color:#ffd97a">${total}</div><div style="font-size:9px;color:rgba(255,255,255,.7);text-transform:uppercase">Total</div></div>
+        <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px 4px;text-align:center"><div style="font-size:18px;font-weight:800;color:#7dd3fc">${active}</div><div style="font-size:9px;color:rgba(255,255,255,.7);text-transform:uppercase">Active</div></div>
+        <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px 4px;text-align:center"><div style="font-size:18px;font-weight:800;color:#86efac">${done}</div><div style="font-size:9px;color:rgba(255,255,255,.7);text-transform:uppercase">Done</div></div>
+        <div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px 4px;text-align:center"><div style="font-size:18px;font-weight:800;color:#fca5a5">${overdue}</div><div style="font-size:9px;color:rgba(255,255,255,.7);text-transform:uppercase">Overdue</div></div>
+      </div>
+    </div>`;
+
+  // Group by project
+  const byProject={};
+  postTasks.forEach(function(t){
+    const p=t.project||'—';
+    if(!byProject[p]) byProject[p]=[];
+    byProject[p].push(t);
+  });
+
+  Object.keys(byProject).sort().forEach(function(proj){
+    const pt=byProject[proj];
+    // Only show parent tasks at top level — sub-tasks nested inside
+    const parents=pt.filter(t=>!t.isSubtask);
+    const projDone=pt.filter(t=>(t.status||'').toLowerCase()==='completed').length;
+
+    html+=`<div style="margin-bottom:16px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:6px 0;border-bottom:2px solid var(--border)">
+        <span style="font-size:13px;font-weight:800;color:var(--navy)">🏗 ${esc(proj)}</span>
+        <span style="background:var(--navy);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:auto">${projDone}/${pt.length} done</span>
+      </div>`;
+
+    parents.forEach(function(task){
+      const subtasks=getSubtasks(task.taskId);
+      const hasSubtasks=subtasks.length>0;
+      const subDone=subtasks.filter(s=>(s.status||'').toLowerCase()==='completed').length;
+      const subPct=hasSubtasks?Math.round((subDone/subtasks.length)*100):0;
+      const cs=getCompletionStatus(task);
+      const overDue=task.planFinish&&task.planFinish<today&&(task.status||'').toLowerCase()!=='completed';
+
+      html+=`<div class="task-card ${skey(task.status)}" style="margin-bottom:4px" onclick="openDetail('${task.taskId}')">
+        <div class="tc-top">
+          <div class="tc-title">${esc(task.title)}</div>
+          <span class="badge ${bkey(task.status)}">${task.status||'Pending'}</span>
+        </div>
+        <div class="tc-meta">
+          <span${overDue?' style="color:#A32D2D;font-weight:700"':''}>${overDue?'⚠ ':''}${task.planFinish||'No date'}</span>
+          <span style="margin-left:auto"><span class="pdot p-${task.priority||'Medium'}"></span>${esc(task.assignedTo||'—')}</span>
+        </div>`;
+
+      // Sub-task progress bar for parent
+      if(hasSubtasks){
+        html+=`<div style="margin-top:8px">
+          <div style="display:flex;justify-content:space-between;font-size:10px;font-weight:700;color:var(--teal);margin-bottom:4px">
+            <span>⚡ Sub-tasks: ${subDone}/${subtasks.length}</span>
+            <span>${subPct}% complete</span>
+          </div>
+          <div style="height:4px;background:var(--border);border-radius:4px"><div style="height:100%;background:var(--teal);border-radius:4px;transition:width .3s;width:${subPct}%"></div></div>
+        </div>`;
+
+        // Sub-task checklist inline
+        html+=`<div style="margin-top:8px;border-top:1px solid var(--border);padding-top:8px">`;
+        subtasks.forEach(function(st,i){
+          const stDone=(st.status||'').toLowerCase()==='completed';
+          const stOD=st.planFinish&&st.planFinish<today&&!stDone;
+          const stActive=(st.status||'').toLowerCase()==='in progress';
+          html+=`<div style="display:flex;align-items:center;gap:8px;padding:5px 4px;border-radius:8px;cursor:pointer;${stDone?'opacity:.65':''}"
+            onclick="event.stopPropagation();openDetail('${st.taskId}')">
+            <span style="width:22px;height:22px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;
+              background:${stDone?'#16a34a':stActive?'#1e7a8c':stOD?'#dc2626':'var(--border)'};
+              color:${stDone||stActive||stOD?'#fff':'var(--text2)'}">
+              ${stDone?'✓':stOD?'!':stActive?'●':(i+1)}
+            </span>
+            <span style="flex:1;font-size:12px;font-weight:${stActive?'700':'600'};color:${stDone?'var(--text2)':'var(--navy)'}${stDone?';text-decoration:line-through':''}">
+              ${esc(st.title)}
+            </span>
+            <span style="font-size:10px;color:var(--text2);white-space:nowrap">${st.targetDur||0}d</span>
+            <span class="badge ${bkey(st.status)}" style="font-size:9px;padding:2px 6px">${st.status}</span>
+          </div>`;
+        });
+        html+=`</div>`;
+      }
+      html+=`</div>`;
+    });
+    html+=`</div>`;
+  });
+
+  html+=`<div style="height:80px"></div></div>`;
+  el.innerHTML=html;
+}
+
 function renderTaskList(){
   const t=getVisibleTasks();const today=getToday();const el=document.getElementById('main-content');
   if(!t.length){el.innerHTML='<div class="empty-state"><div class="empty-icon">&#128196;</div><div class="empty-text">No tasks found</div></div>';return}
@@ -1519,6 +1942,10 @@ function cardHTML(task,today){
   const progress=getProgress(task);
   const variance=getDurVariance(task);
   const overdue=task.planFinish&&task.planFinish<today&&(task.status||'').toLowerCase()!=='completed';
+  const subtasks=task.isSubtask?[]:getSubtasks(task.taskId);
+  const hasSubtasks=subtasks.length>0;
+  const cardId='card_'+task.taskId.replace(/[^a-zA-Z0-9]/g,'_');
+
   let durPill='';
   if(task.targetDur){
     if(cs==='completed'&&variance!==null){
@@ -1531,13 +1958,84 @@ function cardHTML(task,today){
   let completionBadge='';
   if(cs==='ontime')completionBadge=`<span class="badge b-ontime">&#10003; On Time</span>`;
   else if(cs==='late'&&(task.status||'').toLowerCase()==='completed')completionBadge=`<span class="badge b-late">&#9660; Late</span>`;
-  return`<div class="task-card ${skey(task.status)}" onclick="openDetail('${task.taskId}')">
+
+  // Parent badge for sub-tasks
+  let parentLink='';
+  if(task.isSubtask){
+    const parent=getParentTask(task);
+    parentLink=`<span class="parent-badge" onclick="event.stopPropagation();openDetail('${task.parentId}')">&#8593; ${parent?esc(parent.title):'Parent'}</span>`;
+  }
+
+  // Sub-task progress bar + expand arrow for parent tasks
+  let subtaskSection='';
+  if(hasSubtasks){
+    const done=subtasks.filter(s=>(s.status||'').toLowerCase()==='completed').length;
+    const active=subtasks.filter(s=>(s.status||'').toLowerCase()==='in progress').length;
+    const delayed=subtasks.filter(s=>(s.status||'').toLowerCase()==='delayed').length;
+    const pct=Math.round((done/subtasks.length)*100);
+    const tpl=getTaskTemplate(task.title,task.category);
+    const color=(tpl&&tpl.tpl&&tpl.tpl.color)||'var(--teal)';
+    const dept=(tpl&&tpl.tpl&&tpl.tpl.dept)||'';
+
+    // Progress summary bar — no button, card tap toggles
+    subtaskSection+=`<div style="margin-top:8px;background:var(--surface2);border-radius:var(--r);padding:7px 10px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+        <div style="display:flex;align-items:center;gap:6px">
+          <span style="font-size:10px;font-weight:700;color:${color}">⚡ Micro-tasks</span>
+          ${dept?`<span style="font-size:9px;background:${color}22;color:${color};border:1px solid ${color}44;padding:1px 6px;border-radius:10px;font-weight:700">${dept}</span>`:''}
+        </div>
+        <span style="font-size:11px;font-weight:700;color:${color}">${done}/${subtasks.length} · ${pct}%</span>
+      </div>
+      <div style="height:5px;background:var(--border);border-radius:4px">
+        <div style="height:100%;background:${pct===100?'#16a34a':delayed?'#dc2626':active?color:'var(--border)'};border-radius:4px;width:${pct}%;transition:width .3s"></div>
+      </div>
+      ${delayed?`<div style="font-size:10px;color:#dc2626;font-weight:700;margin-top:4px">⚠ ${delayed} micro-task${delayed!==1?'s':''} delayed</div>`:''}
+    </div>`;
+
+    // Dropdown checklist (hidden by default)
+    subtaskSection+=`<div id="${cardId}" style="display:none;margin-top:4px;border-top:1px solid var(--border);padding-top:6px">`;
+    subtasks.forEach(function(st,i){
+      const stDone=(st.status||'').toLowerCase()==='completed';
+      const stActive=(st.status||'').toLowerCase()==='in progress';
+      const stDelayed=(st.status||'').toLowerCase()==='delayed';
+      const stOD=st.planFinish&&st.planFinish<today&&!stDone;
+      const dotBg=stDone?'#16a34a':stDelayed?'#dc2626':stActive?color:'var(--border)';
+      const dotColor=stDone||stDelayed||stActive?'#fff':'var(--text2)';
+      subtaskSection+=`<div style="display:flex;align-items:center;gap:8px;padding:6px 4px;border-radius:8px;cursor:pointer;background:${stActive?color+'11':'transparent'}"
+        onclick="event.stopPropagation();openDetail('${st.taskId}')">
+        <span style="width:22px;height:22px;border-radius:50%;background:${dotBg};color:${dotColor};display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">
+          ${stDone?'✓':stDelayed?'!':stActive?'●':(i+1)}
+        </span>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:12px;font-weight:${stActive?700:600};color:${stDone?'var(--text2)':'var(--navy)'};${stDone?'text-decoration:line-through;opacity:.6':''};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">
+            ${esc(st.title)}
+          </div>
+          <div style="font-size:10px;color:var(--text2);margin-top:1px">
+            ${st.planFinish||''}
+            ${st.assignedTo&&st.assignedTo!==task.assignedTo?`· <span style="color:var(--teal);font-weight:700">${esc(st.assignedTo)}</span>`:''}
+            ${stOD?'· <span style="color:#dc2626;font-weight:700">Overdue</span>':''}
+          </div>
+        </div>
+        <span style="font-size:9px;font-weight:700;color:${color};flex-shrink:0">${st.targetDur||0}d</span>
+        <span class="badge ${bkey(st.status)}" style="font-size:9px;padding:2px 6px;flex-shrink:0">${st.status}</span>
+      </div>`;
+    });
+    subtaskSection+=`</div>`;
+  }
+
+  return`<div class="task-card ${skey(task.status)}${task.isSubtask?' subtask-card':''}"
+    onclick="${hasSubtasks?`toggleSubtaskDropdown('${cardId}')`:`openDetail('${task.taskId}')`}"
+    style="${task.isSubtask?'margin-left:12px;border-left-width:3px':''}">
     <div class="tc-top">
-      <div class="tc-title">${esc(task.title)}</div>
-      ${completionBadge||`<span class="badge ${bkey(task.status)}">${task.status||'Pending'}</span>`}
+      <div class="tc-title">${task.isSubtask?`<span style="color:var(--text2);font-size:10px;margin-right:4px">#${(task.subtaskIndex||0)+1}</span>`:''}${esc(task.title)}</div>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        ${hasSubtasks?`<span id="arr_${cardId}" style="font-size:12px;color:var(--text2)">▼</span>`:''}
+        ${completionBadge||`<span class="badge ${bkey(task.status)}" onclick="${hasSubtasks?`event.stopPropagation();openDetail('${task.taskId}')`:''}">${task.status||'Pending'}</span>`}
+        ${hasSubtasks?`<span onclick="event.stopPropagation();openDetail('${task.taskId}')" style="width:28px;height:28px;border-radius:8px;background:var(--surface2);border:1px solid var(--border);display:inline-flex;align-items:center;justify-content:center;font-size:13px;cursor:pointer;flex-shrink:0" title="Task detail">✏</span>`:''}
+      </div>
     </div>
     <div class="tc-meta">
-      <span class="tc-proj">${esc(task.project)}</span>
+      ${task.isSubtask?parentLink:`<span class="tc-proj">${esc(task.project)}</span>`}
       <span${overdue?' style="color:#A32D2D;font-weight:700"':''}>${overdue?'⚠ ':''}${task.planFinish||'No date'}</span>
       <span style="margin-left:auto"><span class="pdot p-${task.priority||'Medium'}"></span>${esc(task.assignedTo||'—')}</span>
     </div>
@@ -1547,7 +2045,17 @@ function cardHTML(task,today){
       <div class="tl-meta"><span>Progress</span><span>${progress}%</span></div>
       <div class="tl-bar-wrap"><div class="tl-bar progress" style="width:${progress}%"></div></div>
     </div>`:''}
+    ${subtaskSection}
   </div>`;
+}
+
+function toggleSubtaskDropdown(cardId){
+  const el=document.getElementById(cardId);
+  const arr=document.getElementById('arr_'+cardId);
+  if(!el)return;
+  const open=el.style.display!=='none';
+  el.style.display=open?'none':'block';
+  if(arr)arr.textContent=open?'▼':'▲';
 }
 
 function openDetail(id){
@@ -1607,13 +2115,64 @@ function openDetail(id){
     </div>
 
     ${task.remarks?`<div class="field-row"><div class="field-label">Remarks</div><div style="font-size:13px;color:var(--text2);line-height:1.6;padding:10px 12px;background:var(--surface2);border-radius:var(--r)">${esc(task.remarks)}</div></div>`:''}
+
+    ${task.isSubtask?`
+    <div style="background:#ecfeff;border:1.5px solid #a5f3fc;border-radius:var(--r);padding:10px 12px;margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="background:var(--teal);color:#fff;font-size:10px;font-weight:800;padding:2px 10px;border-radius:20px">Step ${(task.subtaskIndex||0)+1}</span>
+        ${task.dept?`<span style="background:#0d1f3c;color:#fff;font-size:10px;font-weight:700;padding:2px 10px;border-radius:20px">${esc(task.dept)}</span>`:''}
+      </div>
+      <div style="font-size:11px;font-weight:700;color:#0891b2;margin-bottom:4px">⚡ Sub-task of:</div>
+      <div style="font-size:13px;font-weight:800;color:var(--navy);cursor:pointer" onclick="closePanel('detail-panel');setTimeout(()=>openDetail('${task.parentId}'),200)">
+        ${esc((getParentTask(task)||{title:'Parent Task'}).title)} &#8594;
+      </div>
+      ${task.remarks?`<div style="font-size:11px;color:#155e75;margin-top:6px;padding-top:6px;border-top:1px solid #a5f3fc">📌 ${esc(task.remarks)}</div>`:''}
+    </div>`:''}
+
+    ${!task.isSubtask&&getSubtasks(task.taskId).length>0?`
+    <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">⚡ Sub-tasks</span>
+        <span style="background:var(--teal);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px">${getSubtasks(task.taskId).filter(s=>(s.status||'').toLowerCase()==='completed').length}/${getSubtasks(task.taskId).length}</span>
+      </div>
+      ${getSubtasks(task.taskId).map((st,i)=>{
+        const stOD=st.planFinish&&st.planFinish<today&&(st.status||'').toLowerCase()!=='completed';
+        const stDone=(st.status||'').toLowerCase()==='completed';
+        return`<div class="subtask-card ${skey(st.status)}" onclick="event.stopPropagation();openDetail('${st.taskId}')">
+          <div class="subtask-header">
+            <span class="subtask-num" style="background:${stDone?'#16a34a':stOD?'#dc2626':'var(--teal)'}">${stDone?'✓':(i+1)}</span>
+            <span class="subtask-title">${esc(st.title)}</span>
+            <span class="badge ${bkey(st.status)}" style="font-size:9px;padding:2px 7px">${st.status}</span>
+          </div>
+          <div class="subtask-meta">
+            <span>${st.planStart||'—'} → ${st.planFinish||'—'}</span>
+            <span>·</span><span style="font-weight:700">${st.targetDur||0}d</span>
+            <span>·</span><span><span class="pdot p-${st.priority||'Medium'}"></span>${esc(st.assignedTo||'—')}</span>
+            ${stOD?`<span style="color:#dc2626;font-weight:700">⚠ Overdue</span>`:''}
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`:''}
+
     <div style="font-size:10px;color:var(--text2);margin-bottom:4px">ID: ${task.taskId}</div>
+
+    <!-- Location Log -->
+    <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">📍 Location Log</span>
+        <button onclick="logLocation('${task.taskId}')" style="margin-left:auto;background:var(--teal);color:#fff;border:none;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">+ Log Now</button>
+      </div>
+      <div id="loc-log-${task.taskId}">
+        ${buildLocationLog(task)}
+      </div>
+    </div>
+
     <div class="divider"></div>
     <div class="action-row">
       ${(task.status||'').toLowerCase()!=='completed'?`<button class="btn success" onclick="markDone('${task.taskId}')">&#10003; Mark Done</button>`:''}
       <button class="btn" onclick="editCurrentTask()">&#9998; Edit</button>
     </div>
-    <div class="action-row"><button class="btn danger" onclick="confirmDelete('${task.taskId}')">Delete</button></div>
+    <div class="action-row"><button class="btn danger" onclick="confirmDelete('${task.taskId}')">Delete${!task.isSubtask&&getSubtasks(task.taskId).length>0?' (+ sub-tasks)':''}</button></div>
     <div style="height:20px"></div>`;
   openPanel('detail-panel');
 }
@@ -1622,16 +2181,38 @@ function markDone(id){
   const task=tasks.find(t=>t.taskId===id);if(!task)return;
   task.status='Completed';
   if(!task.actualFinish)task.actualFinish=getToday();
-  if(task.actualStart&&task.actualFinish){
-    const d=daysBetween(task.actualStart,task.actualFinish);
-    if(d>=0)task.actualDur=d;
-  }
+  if(task.actualStart&&task.actualFinish){const d=daysBetween(task.actualStart,task.actualFinish);if(d>=0)task.actualDur=d;}
   task.lastUpdated=new Date().toISOString();
-  saveTasks();pushTask(task);showToast('Marked done ✓');closePanel('detail-panel');render();
+  saveTasks();pushTask(task);
+  if(task.isSubtask&&task.parentId){
+    const parent=tasks.find(t=>t.taskId===task.parentId);
+    if(parent) syncMilestoneFromSubtasks(parent.project, parent.category);
+    const subs=getSubtasks(task.parentId);
+    const allDone=subs.every(function(s){return(s.status||'').toLowerCase()==='completed';});
+    if(allDone&&parent&&(parent.status||'').toLowerCase()!=='completed'){
+      parent.status='Completed';
+      if(!parent.actualFinish) parent.actualFinish=getToday();
+      saveTasks();pushTask(parent);
+    }
+  }
+  showToast('Marked done ✓');closePanel('detail-panel');render();
+  // Auto-capture location in background
+  setTimeout(function(){logLocation(id,'Marked as Completed');},600);
 }
 
-function confirmDelete(id){if(confirm('Delete this task?'))deleteTask(id)}
-function deleteTask(id){tasks=tasks.filter(t=>t.taskId!==id);saveTasks();showToast('Deleted');closePanel('detail-panel');render()}
+function confirmDelete(id){
+  const task=tasks.find(t=>t.taskId===id);if(!task)return;
+  const subs=getSubtasks(id);
+  const msg=subs.length>0?`Delete "${task.title}" and its ${subs.length} sub-tasks?`:`Delete "${task.title}"?`;
+  if(confirm(msg))deleteTask(id);
+}
+function deleteTask(id){
+  // Cascade delete sub-tasks
+  const subs=getSubtasks(id);
+  subs.forEach(function(st){tasks=tasks.filter(t=>t.taskId!==st.taskId);});
+  tasks=tasks.filter(t=>t.taskId!==id);
+  saveTasks();showToast('Deleted');closePanel('detail-panel');render();
+}
 
 function openAdd(){
   editingId=null;document.getElementById('add-panel-title').textContent='New Task';
@@ -1641,6 +2222,10 @@ function openAdd(){
   document.getElementById('f-priority').value='Medium';document.getElementById('f-status').value='Pending';
   const hint=document.getElementById('prev-task-hint');
   if(hint){hint.style.display='none';hint.style.background='#EAF3DE';hint.style.borderColor='#C0DD97';hint.style.color='#27500A';}
+  const sp=document.getElementById('subtask-preview');
+  if(sp)sp.style.display='none';
+  const pk=document.getElementById('subtask-picker');
+  if(pk)pk.style.display='none';
   openPanel('add-panel');
 }
 
@@ -1657,11 +2242,193 @@ function editCurrentTask(){
   closePanel('detail-panel');setTimeout(()=>openPanel('add-panel'),30);
 }
 
+function onTitleInput(val){
+  const cat=document.getElementById('f-category').value;
+  const match=getTaskTemplate(val,cat);
+  const preview=document.getElementById('subtask-preview');
+  if(!match||editingId){preview.style.display='none';return;}
+  showTemplatePreview(match);
+}
+
+function onCategoryChange(val){
+  const title=document.getElementById('f-title').value;
+  const match=getTaskTemplate(title, val);
+
+  // Show step picker if category has a workflow template
+  const picker=document.getElementById('subtask-picker');
+  const stepSel=document.getElementById('f-step-picker');
+
+  // Find template by category directly
+  let catMatch=null;
+  for(const key of Object.keys(TASK_TEMPLATES)){
+    const tpl=TASK_TEMPLATES[key];
+    if((tpl.category||'').toLowerCase()===val.toLowerCase()||key.toLowerCase()===val.toLowerCase()){
+      catMatch={key,tpl};break;
+    }
+  }
+
+  if(catMatch&&!editingId){
+    // Populate step picker with parent + all sub-task steps
+    let opts='<option value="">— Select step —</option>';
+    opts+='<option value="__parent__">📋 '+catMatch.key+' (full workflow — all '+catMatch.tpl.subtasks.length+' micro-tasks)</option>';
+    catMatch.tpl.subtasks.forEach(function(s,i){
+      opts+='<option value="'+esc(s.title)+'">Step '+(i+1)+': '+esc(s.title)+' ('+s.days+'d)</option>';
+    });
+    stepSel.innerHTML=opts;
+    picker.style.display='block';
+    // If title is empty, pre-fill with parent key
+    if(!document.getElementById('f-title').value.trim()){
+      document.getElementById('f-title').value=catMatch.key;
+      onTitleInput(catMatch.key);
+    }
+  } else {
+    picker.style.display='none';
+  }
+
+  if(match) showTemplatePreview(match);
+  else document.getElementById('subtask-preview').style.display='none';
+}
+
+function onStepPickerChange(val){
+  if(!val) return;
+  const titleEl=document.getElementById('f-title');
+  const preview=document.getElementById('subtask-preview');
+
+  if(val==='__parent__'){
+    // Full workflow — use template key as title
+    const cat=document.getElementById('f-category').value;
+    let catMatch=null;
+    for(const key of Object.keys(TASK_TEMPLATES)){
+      const tpl=TASK_TEMPLATES[key];
+      if((tpl.category||'').toLowerCase()===cat.toLowerCase()||key.toLowerCase()===cat.toLowerCase()){
+        catMatch={key,tpl};break;
+      }
+    }
+    if(catMatch){
+      titleEl.value=catMatch.key;
+      showTemplatePreview(catMatch);
+    }
+    return;
+  }
+
+  // Single step selected
+  titleEl.value=val;
+  preview.style.display='none';
+
+  const proj=document.getElementById('f-project').value;
+  const cat=document.getElementById('f-category').value;
+
+  // Find this step's template definition
+  let stepDef=null;
+  let stepIdx=-1;
+  let tplMatch=null;
+  for(const key of Object.keys(TASK_TEMPLATES)){
+    const tpl=TASK_TEMPLATES[key];
+    if((tpl.category||'').toLowerCase()===cat.toLowerCase()||key.toLowerCase()===cat.toLowerCase()){
+      tplMatch=tpl;
+      tpl.subtasks.forEach(function(s,i){if(s.title===val){stepDef=s;stepIdx=i;}});
+      break;
+    }
+  }
+
+  if(!stepDef) return;
+
+  // Auto-fill target duration
+  document.getElementById('f-target-dur').value=stepDef.days;
+
+  // Find previous step's planned finish date from:
+  // 1. Existing task in same project with previous step title
+  // 2. Milestone planned date for this category
+  // 3. Fall back to last completed task finish date
+  let suggestedStart='';
+  let startHint='';
+
+  if(stepIdx>0&&proj&&tplMatch){
+    // Look for the previous step task in this project
+    const prevStepTitle=tplMatch.subtasks[stepIdx-1].title;
+    const prevTask=tasks.find(function(t){
+      return t.project===proj&&t.title===prevStepTitle;
+    });
+    if(prevTask&&(prevTask.actualFinish||prevTask.planFinish)){
+      suggestedStart=prevTask.actualFinish||prevTask.planFinish;
+      startHint='Auto-filled: '+prevStepTitle+' '+(prevTask.actualFinish?'actual':'planned')+' finish';
+    }
+  }
+
+  // If no previous step found, use milestone planned date
+  if(!suggestedStart&&proj){
+    const ms=getMilestones(proj);
+    const msEntry=ms.find(function(m){
+      return cat&&(m.name.toLowerCase().includes(cat.toLowerCase().split(' ')[0]));
+    });
+    if(msEntry&&msEntry.plannedStart){
+      // Compute offset: sum days of all previous steps
+      let offset=0;
+      if(tplMatch) tplMatch.subtasks.slice(0,stepIdx).forEach(function(s){offset+=s.days;});
+      suggestedStart=addDays(msEntry.plannedStart,offset);
+      startHint='Auto-filled from milestone planned date';
+    }
+  }
+
+  // Fall back to last completed task in project
+  if(!suggestedStart&&proj){
+    const last=getLastCompletedDate(proj);
+    if(last){suggestedStart=last.date;startHint='From last completed task';}
+  }
+
+  if(suggestedStart){
+    const startEl=document.getElementById('f-plan-start');
+    const finishEl=document.getElementById('f-plan-finish');
+    const hintEl=document.getElementById('prev-task-hint');
+    startEl.value=suggestedStart;
+    finishEl.value=addDays(suggestedStart,stepDef.days);
+    calcPlanDur();
+    if(hintEl){
+      hintEl.style.display='block';
+      hintEl.style.background='#EAF3DE';hintEl.style.borderColor='#C0DD97';hintEl.style.color='#27500A';
+      hintEl.innerHTML='&#128197; <strong>'+startHint+'</strong><br>'
+        +'<span style="color:#3B6D11">Start: <strong>'+suggestedStart+'</strong> · Finish: <strong>'+addDays(suggestedStart,stepDef.days)+'</strong> · '+stepDef.days+'d</span>'
+        +'<br><span style="color:#5a6a85;font-size:10px">You can change these dates manually</span>';
+    }
+  }
+}
+
+function showTemplatePreview(match){
+  const preview=document.getElementById('subtask-preview');
+  const tpl=match.tpl;
+  const color=tpl.color||'#0891b2';
+  const titleEl=document.getElementById('subtask-preview-title');
+  titleEl.innerHTML=match.key+(tpl.dept?` <span style="font-size:10px;background:${color};color:#fff;padding:1px 7px;border-radius:20px;margin-left:4px">${tpl.dept}</span>`:'');
+  document.getElementById('subtask-total-days').textContent=tpl.totalDays+'d total';
+  preview.style.borderColor=color;
+  preview.style.background=color+'18';
+  let prereqHtml='';
+  if(tpl.prereq){
+    const proj=document.getElementById('f-project').value;
+    const hasCC=proj&&tasks.some(function(t){return t.project===proj&&t.title.toLowerCase().includes(tpl.prereq.toLowerCase())&&(t.status||'').toLowerCase()==='completed';});
+    prereqHtml=`<div style="margin-bottom:8px;padding:7px 10px;border-radius:8px;border:1px solid ${hasCC?'#bbf7d0':'#fecdd3'};background:${hasCC?'#f0fdf4':'#fff1f2'}">
+      <div style="font-size:11px;font-weight:700;color:${hasCC?'#16a34a':'#dc2626'}">${hasCC?'✓':'⚠'} Prerequisite: ${tpl.prereq} — ${hasCC?'Completed ✓':'Not yet completed'}</div>
+      <div style="font-size:10px;color:${hasCC?'#16a34a':'#dc2626'};margin-top:2px">${tpl.prereqNote||''}</div>
+    </div>`;
+  }
+  let listHtml='';let cumDays=0;
+  tpl.subtasks.forEach(function(s,i){
+    listHtml+=`<div style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;border-bottom:1px solid ${color}22">`;
+    listHtml+=`<span style="width:18px;height:18px;border-radius:50%;background:${color};color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:8px;font-weight:800;flex-shrink:0;margin-top:1px">${i+1}</span>`;
+    listHtml+=`<div style="flex:1"><div style="font-size:12px;font-weight:700;color:#0d1f3c">${s.title}</div>`;
+    if(s.note) listHtml+=`<div style="font-size:10px;color:#5a6a85;margin-top:1px">${s.note}</div>`;
+    listHtml+=`</div><div style="text-align:right;flex-shrink:0"><div style="font-size:11px;font-weight:800;color:${color}">${s.days}d</div><div style="font-size:9px;color:#94a3b8">Day ${cumDays+1}–${cumDays+s.days}</div></div></div>`;
+    cumDays+=s.days;
+  });
+  document.getElementById('subtask-preview-list').innerHTML=prereqHtml+listHtml;
+  preview.style.display='block';
+}
+
 function saveTask(){
   const title=document.getElementById('f-title').value.trim();
   const project=document.getElementById('f-project').value;
-  if(!title){showToast('Enter task title');return}
-  if(!project){showToast('Select a project');return}
+  if(!title){showToast('Enter task title');return;}
+  if(!project){showToast('Select a project');return;}
   const gv=id=>document.getElementById(id).value;
   const d={
     taskId:editingId||('T'+Date.now()),project,title,
@@ -1674,20 +2441,45 @@ function saveTask(){
     remarks:gv('f-remarks').trim(),
     lastUpdated:new Date().toISOString()
   };
-  // Always auto-compute actual duration from dates if both present
-  if(d.actualStart && d.actualFinish){
-    const n=daysBetween(d.actualStart,d.actualFinish);
-    if(n>=0) d.actualDur=n;
+  if(d.actualStart&&d.actualFinish){const n=daysBetween(d.actualStart,d.actualFinish);if(n>=0)d.actualDur=n;}
+  if(!d.targetDur&&d.planStart&&d.planFinish){const n=daysBetween(d.planStart,d.planFinish);if(n>0)d.targetDur=n;}
+
+  // Match template by title OR category
+  const match=getTaskTemplate(title, d.category);
+  if(!editingId&&match&&d.planStart&&!d.planFinish){
+    d.planFinish=addDays(d.planStart,match.tpl.totalDays);
+    d.targetDur=match.tpl.totalDays;
   }
-  // Also auto-compute target duration from planned dates if not set
-  if(!d.targetDur && d.planStart && d.planFinish){
-    const n=daysBetween(d.planStart,d.planFinish);
-    if(n>0) d.targetDur=n;
+
+  if(editingId){
+  // Detect status change when editing — capture location
+  let prevStatus=null;
+  if(editingId){
+    const i=tasks.findIndex(t=>t.taskId===editingId);
+    if(i>=0){
+      prevStatus=tasks[i].status;
+      tasks[i]=d;
+    }
+    if(d.category) syncMilestoneFromSubtasks(d.project, d.category);
+  } else {
+    tasks.unshift(d);
+    if(match&&d.planStart){
+      const subtasks=generateSubtasks(d);
+      subtasks.forEach(function(st){tasks.unshift(st);});
+      subtasks.forEach(function(st){pushTask(st);});
+      if(subtasks.length){
+        showToast(match.key+': '+subtasks.length+' micro-tasks created ✓');
+        syncMilestoneFromSubtasks(d.project, match.key);
+      }
+    }
   }
-  if(editingId){const i=tasks.findIndex(t=>t.taskId===editingId);if(i>=0)tasks[i]=d;}
-  else tasks.unshift(d);
   saveTasks();pushTask(d);closePanel('add-panel');render();
-  showToast(editingId?'Updated ✓':'Task added ✓');editingId=null;
+  showToast(editingId?'Updated ✓':'Task added ✓');
+  // Auto-log location if status changed
+  if(editingId && prevStatus && prevStatus!==d.status){
+    setTimeout(function(){logLocation(d.taskId, 'Status: '+prevStatus+' → '+d.status);},600);
+  }
+  editingId=null;
 }
 
 // ═══════════════════════════════════════════
@@ -1968,23 +2760,21 @@ function copyCode(){const code=document.getElementById('ascode').textContent;if(
 // Build milestone table for report — shows planned date, actual date, status, variance
 function buildMilestoneTable(ms, tlPt){
   var html='';
-  html+='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">';
-  html+='<table style="width:100%;border-collapse:collapse;font-size:11px;min-width:360px">';
+  html+='<div style="overflow-x:auto;-webkit-overflow-scrolling:touch;margin-top:8px">';
+  html+='<table style="width:100%;border-collapse:collapse;font-size:11px">';
   // Header
   html+='<tr style="background:var(--navy)">';
-  html+='<th style="text-align:left;padding:6px 8px;font-weight:700;color:rgba(255,255,255,.8);font-size:10px;white-space:nowrap">Milestone</th>';
-  html+='<th style="text-align:center;padding:6px 6px;font-weight:700;color:rgba(255,255,255,.8);font-size:10px;white-space:nowrap">Std Days</th>';
-  html+='<th style="text-align:center;padding:6px 6px;font-weight:700;color:rgba(255,255,255,.8);font-size:10px;white-space:nowrap">Planned Date</th>';
-  html+='<th style="text-align:center;padding:6px 6px;font-weight:700;color:rgba(255,255,255,.8);font-size:10px;white-space:nowrap">Actual Date</th>';
-  html+='<th style="text-align:center;padding:6px 6px;font-weight:700;color:rgba(255,255,255,.8);font-size:10px;white-space:nowrap">Variance</th>';
-  html+='<th style="text-align:center;padding:6px 6px;font-weight:700;color:rgba(255,255,255,.8);font-size:10px;white-space:nowrap">Status</th>';
+  html+='<th style="text-align:left;padding:7px 8px;font-weight:700;color:rgba(255,255,255,.85);font-size:10px">Milestone</th>';
+  html+='<th style="text-align:center;padding:7px 5px;font-weight:700;color:rgba(255,255,255,.85);font-size:10px;white-space:nowrap">Plan</th>';
+  html+='<th style="text-align:center;padding:7px 5px;font-weight:700;color:rgba(255,255,255,.85);font-size:10px;white-space:nowrap">Actual</th>';
+  html+='<th style="text-align:center;padding:7px 5px;font-weight:700;color:rgba(255,255,255,.85);font-size:10px;white-space:nowrap">Var</th>';
+  html+='<th style="text-align:center;padding:7px 5px;font-weight:700;color:rgba(255,255,255,.85);font-size:10px;white-space:nowrap">Status</th>';
   html+='</tr>';
 
   ms.forEach(function(m,i){
     var isDone=m.status==='Completed';
     var isActive=m.status==='In Progress';
     var isDelayed=m.status==='Delayed';
-    var isPending=m.status==='Pending';
     var isYts=m.status==='Yet to Start';
     var isLpa=m.days===0;
 
@@ -1995,54 +2785,59 @@ function buildMilestoneTable(ms, tlPt){
     else if(isYts) rowBg='#f8fafc';
 
     var statusColor=isDone?'#16a34a':isDelayed?'#dc2626':isActive?'#0891b2':isYts?'#64748b':'#94a3b8';
-    var statusIcon=isDone?'&#10003;':isDelayed?'&#9888;':isActive?'&#9679;':isYts?'&#9711;':'&#9675;';
+    var dotColor=isDone?'#16a34a':isActive?'#0891b2':isDelayed?'#dc2626':isYts?'#94a3b8':'#cbd5e1';
+    var statusIcon=isDone?'✓':isDelayed?'⚠':isActive?'●':isYts?'◎':'○';
 
-    // Planned date to show — prefer plannedFinish, fall back to plannedStart
-    var plannedDate=m.plannedFinish&&m.plannedFinish!==m.plannedStart?m.plannedFinish:(m.plannedStart||'—');
-    // Std days label
-    var stdDays=isLpa?'Start':(m.days?(m.parallel?m.days+'d &#8741;':m.days+'d'):'—');
+    var plannedDate=m.plannedFinish&&m.plannedFinish!==m.plannedStart?m.plannedFinish:(m.plannedStart||'');
+    // Short date format: 10-Apr-25
+    function shortDate(d){
+      if(!d)return'—';
+      try{
+        var parts=d.split('-');
+        var months=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return parts[2]+'-'+months[parseInt(parts[1])-1];
+      }catch(e){return d;}
+    }
 
     // Variance
-    var varianceHtml='<span style="color:#94a3b8">—</span>';
+    var varianceHtml='<span style="color:#94a3b8;font-size:10px">—</span>';
     if(isDone&&m.date&&m.plannedFinish&&!isLpa){
       var v=daysBetween(m.plannedFinish,m.date);
-      if(v>0) varianceHtml='<span style="color:#dc2626;font-weight:700">+'+v+'d</span>';
-      else if(v<0) varianceHtml='<span style="color:#16a34a;font-weight:700">'+v+'d</span>';
-      else varianceHtml='<span style="color:#16a34a;font-weight:700">On Time</span>';
+      if(v>0) varianceHtml='<span style="color:#dc2626;font-weight:700;font-size:10px">+'+v+'d</span>';
+      else if(v<0) varianceHtml='<span style="color:#16a34a;font-weight:700;font-size:10px">'+v+'d</span>';
+      else varianceHtml='<span style="color:#16a34a;font-weight:700;font-size:10px">✓</span>';
     } else if(isDelayed&&m.plannedFinish){
       var today2=getToday();
       var overby=daysBetween(m.plannedFinish,today2);
-      if(overby>0) varianceHtml='<span style="color:#dc2626;font-weight:700">+'+overby+'d</span>';
+      if(overby>0) varianceHtml='<span style="color:#dc2626;font-weight:700;font-size:10px">+'+overby+'d</span>';
     }
 
     html+='<tr style="background:'+rowBg+';border-bottom:1px solid var(--border)">';
-    // Milestone name with icon
+    // Milestone name
     html+='<td style="padding:7px 8px">';
     html+='<div style="display:flex;align-items:center;gap:6px">';
-    html+='<span style="width:18px;height:18px;border-radius:50%;background:'+(isDone?'#16a34a':isActive?'#0891b2':isDelayed?'#dc2626':'var(--border)')+';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">'+statusIcon+'</span>';
-    html+='<span style="font-weight:700;color:var(--navy);font-size:11px">'+esc(m.name)+'</span>';
+    html+='<span style="width:20px;height:20px;border-radius:50%;background:'+dotColor+';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:9px;font-weight:800;flex-shrink:0">'+statusIcon+'</span>';
+    html+='<div><div style="font-weight:700;color:var(--navy);font-size:11px;line-height:1.3">'+esc(m.name)+'</div>';
+    html+='<div style="font-size:9px;color:var(--text2);font-weight:600">'+(isLpa?'Start date':(m.days?m.days+'d std':''))+'</div></div>';
     html+='</div></td>';
-    // Std days
-    html+='<td style="padding:7px 6px;text-align:center;color:var(--text2);font-weight:600;font-size:10px">'+stdDays+'</td>';
     // Planned date
-    html+='<td style="padding:7px 6px;text-align:center;color:var(--text2);font-size:10px;white-space:nowrap">'+(isLpa?'<span style="color:var(--gold);font-weight:700">'+plannedDate+'</span>':plannedDate)+'</td>';
+    html+='<td style="padding:7px 5px;text-align:center;font-size:10px;white-space:nowrap;color:'+(isLpa?'var(--gold)':'var(--text2)')+';font-weight:'+(isLpa?'700':'400')+'">'+shortDate(plannedDate)+'</td>';
     // Actual date
     var actualColor=isDone?'#14532d':isDelayed?'#dc2626':'var(--text2)';
-    var actualWeight=m.date?'700':'400';
-    html+='<td style="padding:7px 6px;text-align:center;font-weight:'+actualWeight+';color:'+actualColor+';font-size:10px;white-space:nowrap">'+(m.date||'<span style="color:#cbd5e1">Not set</span>')+'</td>';
+    html+='<td style="padding:7px 5px;text-align:center;font-weight:'+(m.date?'700':'400')+';color:'+actualColor+';font-size:10px;white-space:nowrap">'+(m.date?shortDate(m.date):'<span style="color:#cbd5e1;font-size:9px">—</span>')+'</td>';
     // Variance
-    html+='<td style="padding:7px 6px;text-align:center;font-size:10px">'+varianceHtml+'</td>';
+    html+='<td style="padding:7px 5px;text-align:center">'+varianceHtml+'</td>';
     // Status badge
-    html+='<td style="padding:7px 6px;text-align:center">';
-    html+='<span style="background:'+(isDone?'#f0fdf4':isActive?'#ecfeff':isDelayed?'#fff1f2':'var(--surface2)')+';color:'+statusColor+';font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px;border:1px solid '+statusColor+';white-space:nowrap">'+m.status+'</span>';
+    html+='<td style="padding:7px 5px;text-align:center">';
+    html+='<span style="background:'+(isDone?'#f0fdf4':isActive?'#ecfeff':isDelayed?'#fff1f2':isYts?'#f1f5f9':'var(--surface2)')+';color:'+statusColor+';font-size:9px;font-weight:700;padding:2px 6px;border-radius:8px;border:1px solid '+statusColor+';white-space:nowrap">'+m.status+'</span>';
     html+='</td>';
     html+='</tr>';
   });
+
   html+='</table></div>';
   return html;
 }
 
-// ═══════════════════════════════════════════
 // REPORT SYSTEM
 // ═══════════════════════════════════════════
 var currentReportTab='approval';
@@ -2117,23 +2912,41 @@ function statBox(n,label,color){
   return'<div style="background:rgba(255,255,255,.12);border-radius:8px;padding:7px 4px;text-align:center"><div style="font-size:16px;font-weight:800;color:'+color+'">'+n+'</div><div style="font-size:9px;color:rgba(255,255,255,.7);text-transform:uppercase;letter-spacing:.3px">'+label+'</div></div>';
 }
 function taskRow(t,today,showProject,showPerson){
+  var cs=getCompletionStatus(t);
+  var progress=getProgress(t);
+  var variance=getDurVariance(t);
+  var overdue=t.planFinish&&t.planFinish<today&&(t.status||'').toLowerCase()!=='completed';
+  var sk=skey(t.status);
   var bk=bkey(t.status);
-  var isOD=t.planFinish&&t.planFinish<today&&(t.status||'').toLowerCase()!=='completed';
-  var prDot='<span style="width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:4px;background:'+(t.priority==='High'?'#dc2626':t.priority==='Medium'?'#d97706':'#16a34a')+'"></span>';
-  var r='<div style="padding:7px 0;border-bottom:1px solid var(--border);display:grid;grid-template-columns:1fr auto;gap:6px;align-items:start">';
-  r+='<div>';
-  r+='<div style="font-size:12px;font-weight:700;color:var(--navy);margin-bottom:3px">'+esc(t.title)+'</div>';
-  r+='<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">';
-  r+='<span class="badge '+bk+'" style="font-size:9px;padding:2px 7px">'+t.status+'</span>';
-  if(showProject) r+='<span style="font-size:10px;font-weight:700;color:var(--teal)">'+esc(t.project)+'</span>';
-  if(showPerson) r+='<span style="font-size:10px;color:var(--text2)">'+esc(t.assignedTo||'—')+'</span>';
-  r+=prDot+'<span style="font-size:10px;color:var(--text2)">'+t.priority+'</span>';
-  r+='</div></div>';
-  r+='<div style="text-align:right;font-size:10px;white-space:nowrap">';
-  if(t.planFinish) r+='<div style="color:'+(isOD?'#dc2626':'var(--text2)');r+=';font-weight:'+(isOD?'700':'400')+'">'+fmtDate(t.planFinish)+(isOD?' ⚠':'')+'</div>';
-  if(t.planStart) r+='<div style="color:var(--text2);font-size:9px">Start: '+fmtDate(t.planStart)+'</div>';
-  r+='</div></div>';
-  return r;
+  var durPill='';
+  if(t.targetDur){
+    if(cs==='completed'&&variance!==null){
+      var over=variance>0;
+      durPill='<span class="dur-pill '+(over?'over':'on')+'">'+(over?'+':'')+variance+'d vs target</span>';
+    } else {
+      durPill='<span class="dur-pill">'+t.targetDur+'d target</span>';
+    }
+  }
+  var completionBadge='';
+  if(cs==='ontime') completionBadge='<span class="badge b-ontime">&#10003; On Time</span>';
+  else if(cs==='late'&&(t.status||'').toLowerCase()==='completed') completionBadge='<span class="badge b-late">&#9660; Late</span>';
+  var progressBar='';
+  if(progress!==null&&(t.status||'').toLowerCase()==='in progress'){
+    progressBar='<div class="tc-timeline"><div class="tl-meta"><span>Progress</span><span>'+progress+'%</span></div><div class="tl-bar-wrap"><div class="tl-bar progress" style="width:'+progress+'%"></div></div></div>';
+  }
+  return '<div class="task-card '+sk+'" style="cursor:default">'+
+    '<div class="tc-top">'+
+    '<div class="tc-title">'+esc(t.title)+'</div>'+
+    (completionBadge||'<span class="badge '+bk+'">'+(t.status||'Pending')+'</span>')+
+    '</div>'+
+    '<div class="tc-meta">'+
+    (showProject?'<span class="tc-proj">'+esc(t.project)+'</span>':'')+
+    '<span'+(overdue?' style="color:#A32D2D;font-weight:700"':'')+'>'+(overdue?'⚠ ':'')+( t.planFinish||'No date')+'</span>'+
+    '<span style="margin-left:auto"><span class="pdot p-'+(t.priority||'Medium')+'"></span>'+esc(t.assignedTo||'—')+'</span>'+
+    '</div>'+
+    (durPill?'<div style="margin-top:6px">'+durPill+'</div>':'')+
+    progressBar+
+    '</div>';
 }
 function sectionHdr(icon,title,count){
   return'<div style="display:flex;align-items:center;gap:8px;padding:10px 0 6px;border-bottom:2px solid var(--border);margin-bottom:8px"><span style="font-size:14px">'+icon+'</span><span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">'+title+'</span><span style="background:var(--navy);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px;margin-left:auto">'+count+'</span></div>';
@@ -2555,6 +3368,280 @@ function copyReportText(){
   if(navigator.clipboard){navigator.clipboard.writeText(txt).then(function(){showToast('Report copied ✓');});}
   else{var ta=document.createElement('textarea');ta.value=txt;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('Report copied ✓');}
 }
+// ═══════════════════════════════════════════
+// ARCHIVE & EXPORT
+// ═══════════════════════════════════════════
+
+function openArchivePanel(){
+  const today=getToday();
+  const thisYear=new Date().getFullYear();
+  // Financial years (Apr–Mar)
+  const years=[];
+  for(let y=2024;y<=thisYear;y++) years.push(y+'-'+(y+1));
+  // Count tasks per FY
+  function getFY(dateStr){
+    if(!dateStr)return null;
+    const d=new Date(dateStr);
+    const m=d.getMonth(); // 0=Jan
+    const y=d.getFullYear();
+    return m>=3?y+'-'+(y+1):(y-1)+'-'+y; // Apr=3
+  }
+  const completedTasks=tasks.filter(function(t){return(t.status||'').toLowerCase()==='completed';});
+  const byCounts={};
+  completedTasks.forEach(function(t){
+    const fy=getFY(t.actualFinish||t.planFinish)||'Unknown';
+    byCounts[fy]=(byCounts[fy]||0)+1;
+  });
+  const totalActive=tasks.filter(function(t){return(t.status||'').toLowerCase()!=='completed';}).length;
+  const archived=tasks.filter(function(t){return t.archived===true;}).length;
+
+  let html='';
+  // Storage summary card
+  html+='<div style="background:var(--hdr-grad);border-radius:var(--rl);padding:14px;color:#fff;margin-bottom:16px">';
+  html+='<div style="font-size:11px;color:rgba(255,255,255,.6);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px">Database Status</div>';
+  html+='<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">';
+  html+='<div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#ffd97a">'+tasks.length+'</div><div style="font-size:9px;color:rgba(255,255,255,.7)">TOTAL</div></div>';
+  html+='<div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#86efac">'+totalActive+'</div><div style="font-size:9px;color:rgba(255,255,255,.7)">ACTIVE</div></div>';
+  html+='<div style="background:rgba(255,255,255,.12);border-radius:10px;padding:8px;text-align:center"><div style="font-size:20px;font-weight:800;color:#7dd3fc">'+completedTasks.length+'</div><div style="font-size:9px;color:rgba(255,255,255,.7)">COMPLETED</div></div>';
+  html+='</div></div>';
+
+  // Export section
+  html+='<div class="form-section"><span class="form-section-icon">📥</span> Export to Excel</div>';
+  html+='<div style="margin-bottom:14px">';
+  html+='<div class="action-row"><button class="btn gold" onclick="exportTasksExcel()">⬇ Export ALL Tasks ('+tasks.length+')</button></div>';
+  html+='<div class="action-row" style="margin-top:8px"><button class="btn" onclick="exportCompletedExcel()">⬇ Export Completed Only ('+completedTasks.length+')</button></div>';
+  html+='</div>';
+
+  // Archive by Financial Year
+  html+='<div class="form-section"><span class="form-section-icon">📅</span> Archive by Financial Year</div>';
+  html+='<div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:var(--r);padding:10px 12px;margin-bottom:12px;font-size:11px;color:#92400e">';
+  html+='⚠ Archive exports the selected year\'s completed tasks to Excel, then removes them from the live database. Active tasks are never archived.';
+  html+='</div>';
+
+  if(Object.keys(byCounts).length===0){
+    html+='<div style="font-size:12px;color:var(--text2);padding:12px;text-align:center">No completed tasks to archive yet</div>';
+  } else {
+    Object.keys(byCounts).sort().forEach(function(fy){
+      const count=byCounts[fy];
+      html+='<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:10px">';
+      html+='<div style="flex:1"><div style="font-size:13px;font-weight:800;color:var(--navy)">FY '+fy+'</div>';
+      html+='<div style="font-size:11px;color:var(--text2);margin-top:2px">'+count+' completed task'+(count!==1?'s':'')+'</div></div>';
+      html+='<div style="display:flex;gap:8px">';
+      html+='<button class="btn" style="font-size:11px;padding:6px 10px" onclick="exportFY(\''+fy+'\')">⬇ Export</button>';
+      html+='<button class="btn danger" style="font-size:11px;padding:6px 10px" onclick="archiveFY(\''+fy+'\')">🗑 Archive</button>';
+      html+='</div></div>';
+    });
+  }
+
+  html+='<div style="height:30px"></div>';
+  document.getElementById('archive-body').innerHTML=html;
+  openPanel('archive-panel');
+}
+
+// Get Financial Year for a date
+function getFY(dateStr){
+  if(!dateStr)return null;
+  const d=new Date(dateStr);
+  const m=d.getMonth();
+  const y=d.getFullYear();
+  return m>=3?y+'-'+(y+1):(y-1)+'-'+y;
+}
+
+// Build CSV string from task array
+function tasksToCSV(taskArr){
+  const headers=['Task ID','Project','Title','Category','Assigned To','Priority','Status',
+    'Planned Start','Planned Finish','Target Days','Actual Start','Actual Finish','Actual Days',
+    'Remarks','Last Updated','Financial Year'];
+  const rows=[headers.join(',')];
+  taskArr.forEach(function(t){
+    const fy=getFY(t.actualFinish||t.planFinish)||'';
+    const row=[
+      t.taskId||'',t.project||'',t.title||'',t.category||'',t.assignedTo||'',
+      t.priority||'',t.status||'',t.planStart||'',t.planFinish||'',t.targetDur||'',
+      t.actualStart||'',t.actualFinish||'',t.actualDur||'',
+      (t.remarks||'').replace(/,/g,';'),t.lastUpdated||'',fy
+    ].map(function(v){return'"'+String(v)+'"';});
+    rows.push(row.join(','));
+  });
+  return rows.join('\n');
+}
+
+// Download CSV as file
+function downloadCSV(csv,filename){
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportTasksExcel(){
+  const csv=tasksToCSV(tasks.filter(function(t){return !t.isSubtask;}));
+  const today=getToday();
+  downloadCSV(csv,'TNCD_Tasks_Export_'+today+'.csv');
+  showToast('Exported '+tasks.length+' tasks ✓');
+}
+
+function exportCompletedExcel(){
+  const completed=tasks.filter(function(t){return(t.status||'').toLowerCase()==='completed'&&!t.isSubtask;});
+  const csv=tasksToCSV(completed);
+  downloadCSV(csv,'TNCD_Completed_Tasks_'+getToday()+'.csv');
+  showToast('Exported '+completed.length+' completed tasks ✓');
+}
+
+function exportFY(fy){
+  const fyTasks=tasks.filter(function(t){
+    return(t.status||'').toLowerCase()==='completed'&&getFY(t.actualFinish||t.planFinish)===fy&&!t.isSubtask;
+  });
+  const csv=tasksToCSV(fyTasks);
+  downloadCSV(csv,'TNCD_FY'+fy+'_Tasks.csv');
+  showToast('Exported FY '+fy+' — '+fyTasks.length+' tasks ✓');
+}
+
+async function archiveFY(fy){
+  const fyTasks=tasks.filter(function(t){
+    return(t.status||'').toLowerCase()==='completed'&&getFY(t.actualFinish||t.planFinish)===fy;
+  });
+  if(!fyTasks.length){showToast('No tasks found for FY '+fy);return;}
+  if(!confirm('Archive FY '+fy+'?\n\nThis will:\n1. Export '+fyTasks.length+' tasks to CSV (downloads now)\n2. Delete them from the live database\n\nActive tasks are NOT affected.')){return;}
+  // Export first
+  exportFY(fy);
+  await new Promise(r=>setTimeout(r,800));
+  // Delete from local
+  const fyIds=new Set(fyTasks.map(function(t){return t.taskId;}));
+  tasks=tasks.filter(function(t){return !fyIds.has(t.taskId);});
+  saveTasks();
+  render();
+  // Delete from Firebase
+  const cfg=getConfig();
+  if(cfg.projectId&&cfg.apiKey){
+    showToast('Removing from Firebase...');
+    let deleted=0;
+    for(const t of fyTasks){
+      try{
+        await fbFetch('DELETE','/tasks/'+encodeURIComponent(t.taskId));
+        deleted++;
+      }catch(e){console.log('Delete error',t.taskId,e.message);}
+      await new Promise(r=>setTimeout(r,100));
+    }
+    showToast('FY '+fy+' archived — '+deleted+' tasks removed ✓');
+  } else {
+    showToast('FY '+fy+' archived locally ✓ (set Firebase credentials to sync)');
+  }
+  openArchivePanel(); // Refresh
+}
+
+// ═══════════════════════════════════════════
+// LOCATION LOGGING
+// ═══════════════════════════════════════════
+
+function buildLocationLog(task){
+  const logs=task.locationLog||[];
+  if(!logs.length){
+    return'<div style="font-size:11px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-radius:var(--r);border:1px dashed var(--border);text-align:center">No location logged yet · Tap + Log Now</div>';
+  }
+  return'<div style="background:var(--surface2);border-radius:var(--r);border:1px solid var(--border);overflow:hidden">'+
+  logs.slice().reverse().map(function(l,i){
+    return'<div style="display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-bottom:1px solid var(--border)">'
+      +'<span style="font-size:18px;flex-shrink:0;line-height:1">📍</span>'
+      +'<div style="flex:1;min-width:0">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--navy);line-height:1.3">'+esc(l.address||'Location captured')+'</div>'
+      +(l.note?'<div style="font-size:10px;color:var(--teal);font-weight:700;margin-top:2px;background:#ecfeff;padding:1px 6px;border-radius:10px;display:inline-block">'+esc(l.note)+'</div>':'')
+      +'<div style="font-size:10px;color:var(--text2);margin-top:3px;display:flex;gap:8px;flex-wrap:wrap">'
+      +'<span>🕐 '+esc(l.time||'')+'</span>'
+      +'<span>👤 '+esc(l.person||'')+'</span>'
+      +(l.accuracy?'<span>±'+l.accuracy+'</span>':'')
+      +(l.lat?'<a href="https://maps.google.com/?q='+l.lat+','+l.lng+'" target="_blank" style="color:var(--teal);font-weight:700;text-decoration:none">🗺 Map ↗</a>':'')
+      +'</div></div></div>';
+  }).join('')+'</div>';
+}
+
+function logLocation(taskId, autoNote){
+  const task=tasks.find(function(t){return t.taskId===taskId;});
+  if(!task) return;
+  const cfg=getConfig();
+  const person=cfg.name||'Team';
+
+  // Update the location log display element if visible
+  function updateDisplay(){
+    const el=document.getElementById('loc-log-'+taskId);
+    if(el) el.innerHTML=buildLocationLog(task);
+  }
+
+  if(!navigator.geolocation){
+    showToast('Location not available on this device');
+    return;
+  }
+
+  const el=document.getElementById('loc-log-'+taskId);
+  if(el) el.innerHTML='<div style="font-size:11px;color:var(--teal);padding:10px;text-align:center;font-weight:600">📍 Getting location...</div>';
+
+  navigator.geolocation.getCurrentPosition(
+    function(pos){
+      const lat=pos.coords.latitude.toFixed(6);
+      const lng=pos.coords.longitude.toFixed(6);
+      const accuracy=Math.round(pos.coords.accuracy);
+      const now=new Date();
+      const timeStr=now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+' '+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+
+      // Reverse geocode via OpenStreetMap Nominatim (free, no key)
+      fetch('https://nominatim.openstreetmap.org/reverse?lat='+lat+'&lon='+lng+'&format=json&addressdetails=1&accept-language=en')
+        .then(function(r){return r.json();})
+        .then(function(data){
+          let address='';
+          if(data&&data.address){
+            const a=data.address;
+            const parts=[];
+            if(a.building||a.amenity||a.shop||a.office||a.tourism) parts.push(a.building||a.amenity||a.shop||a.office||a.tourism);
+            if(a.road||a.pedestrian||a.footway) parts.push(a.road||a.pedestrian||a.footway);
+            if(a.suburb||a.neighbourhood||a.quarter||a.residential) parts.push(a.suburb||a.neighbourhood||a.quarter||a.residential);
+            if(a.city||a.town||a.village||a.county) parts.push(a.city||a.town||a.village||a.county);
+            address=parts.filter(Boolean).slice(0,3).join(', ');
+          }
+          if(!address) address='Lat '+lat+', Lng '+lng;
+          saveLocationEntry(task,lat,lng,accuracy+'m',address,timeStr,person,autoNote||'');
+          updateDisplay();
+          showToast('📍 Location logged ✓');
+        })
+        .catch(function(){
+          // Geocode failed — save coords only
+          const address='Lat '+lat+', Lng '+lng;
+          saveLocationEntry(task,lat,lng,accuracy+'m',address,timeStr,person,autoNote||'');
+          updateDisplay();
+          showToast('📍 Location logged ✓');
+        });
+    },
+    function(err){
+      if(err.code===1) showToast('⚠ Location permission denied — enable in browser settings');
+      else if(err.code===2) showToast('⚠ Location unavailable — check GPS');
+      else showToast('⚠ Location timed out — try again');
+      if(el) el.innerHTML=buildLocationLog(task);
+    },
+    {enableHighAccuracy:true,timeout:15000,maximumAge:10000}
+  );
+}
+
+function saveLocationEntry(task,lat,lng,accuracy,address,time,person,note){
+  // 1. Save to locationLog array
+  if(!task.locationLog) task.locationLog=[];
+  task.locationLog.push({lat,lng,accuracy,address,time,person,note,status:task.status||''});
+  if(task.locationLog.length>10) task.locationLog=task.locationLog.slice(-10);
+
+  // 2. Append to remarks field for easy visibility
+  const locLine='['+time+'] 📍 '+address+(note?' ('+note+')':'')+' — '+person;
+  if(task.remarks){
+    task.remarks=task.remarks+'\n'+locLine;
+  } else {
+    task.remarks=locLine;
+  }
+
+  task.lastUpdated=new Date().toISOString();
+  saveTasks();
+  pushTask(task);
+}
+
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800)}
 function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;')}
 init();
