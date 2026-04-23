@@ -2170,6 +2170,23 @@ function cardHTML(task,today){
     subtaskSection+=`</div>`;
   }
 
+  // MOM pending follow-up badge
+  const momPending=(task.momLog||[]).filter(function(e){return !e.done&&e.followup;});
+  const momOverdue=momPending.filter(function(e){return e.followupDate&&e.followupDate<=today;});
+  const momBadge=momOverdue.length>0
+    ?`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;background:#fff7ed;border:1px solid #fed7aa;border-radius:8px;padding:4px 8px;cursor:pointer" onclick="${hasSubtasks?`event.stopPropagation();`:``}openDetail('${task.taskId}')">
+        <span style="font-size:11px">⚠️</span>
+        <span style="font-size:10px;font-weight:700;color:#92400e">${momOverdue.length} follow-up${momOverdue.length!==1?'s':''} overdue</span>
+        <span style="font-size:10px;color:#d97706;margin-left:auto">📋 MOM</span>
+      </div>`
+    :momPending.length>0
+    ?`<div style="margin-top:6px;display:flex;align-items:center;gap:6px;background:#f0f4ff;border:1px solid #c7d2fe;border-radius:8px;padding:4px 8px;cursor:pointer" onclick="${hasSubtasks?`event.stopPropagation();`:``}openDetail('${task.taskId}')">
+        <span style="font-size:11px">📌</span>
+        <span style="font-size:10px;font-weight:700;color:#1e3a8a">${momPending.length} pending follow-up${momPending.length!==1?'s':''}</span>
+        <span style="font-size:10px;color:#3b82f6;margin-left:auto">📋 MOM</span>
+      </div>`
+    :'';
+
   return`<div class="task-card ${skey(task.status)}${task.isSubtask?' subtask-card':''}"
     onclick="${hasSubtasks?`toggleSubtaskDropdown('${cardId}')`:`openDetail('${task.taskId}')`}"
     style="${task.isSubtask?'margin-left:12px;border-left-width:3px':''}">
@@ -2192,6 +2209,7 @@ function cardHTML(task,today){
       <div class="tl-meta"><span>Progress</span><span>${progress}%</span></div>
       <div class="tl-bar-wrap"><div class="tl-bar progress" style="width:${progress}%"></div></div>
     </div>`:''}
+    ${momBadge}
     ${subtaskSection}
   </div>`;
 }
@@ -2302,6 +2320,41 @@ function openDetail(id){
     </div>`:''}
 
     <div style="font-size:10px;color:var(--text2);margin-bottom:4px">ID: ${task.taskId}</div>
+
+    <!-- MOM — Minutes of Meeting -->
+    <div style="margin-bottom:12px">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+        <span style="font-size:12px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px">📋 MOM & Follow-up</span>
+        <div style="display:flex;gap:6px;margin-left:auto">
+          ${(task.momLog||[]).length>0?`<button onclick="shareMomWhatsApp('${task.taskId}')" style="background:#25D366;color:#fff;border:none;border-radius:20px;padding:4px 10px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">📤 WA</button>`:''}
+          ${(task.status||'').toLowerCase()!=='completed'?`<button onclick="openMomForm('${task.taskId}')" style="background:var(--navy2);color:#fff;border:none;border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;cursor:pointer;font-family:inherit">+ Add MOM</button>`:''}
+        </div>
+      </div>
+      <!-- Inline MOM form (hidden by default) -->
+      <div id="mom-form-${task.taskId}" style="display:none;background:#f0f4ff;border:1.5px solid #c7d2fe;border-radius:var(--r);padding:10px 12px;margin-bottom:8px">
+        <div style="font-size:11px;font-weight:700;color:#1e3a8a;margin-bottom:8px">📋 New MOM Entry</div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:3px;text-transform:uppercase">Meeting / Discussion Notes</div>
+          <textarea id="mom-notes-${task.taskId}" rows="3" placeholder="Who was met · What was discussed · Outcome..." style="width:100%;border:1px solid #c7d2fe;border-radius:8px;padding:8px 10px;font-size:12px;font-family:inherit;resize:none;background:#fff;color:var(--navy)"></textarea>
+        </div>
+        <div style="margin-bottom:8px">
+          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:3px;text-transform:uppercase">Follow-up Action</div>
+          <input id="mom-followup-${task.taskId}" type="text" placeholder="Next step / action required..." style="width:100%;border:1px solid #c7d2fe;border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
+        </div>
+        <div style="margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;color:var(--text2);margin-bottom:3px;text-transform:uppercase">Follow-up Date</div>
+          <input id="mom-date-${task.taskId}" type="date" style="width:100%;border:1px solid #c7d2fe;border-radius:8px;padding:7px 10px;font-size:12px;font-family:inherit;background:#fff;color:var(--navy)">
+        </div>
+        <div style="display:flex;gap:8px">
+          <button onclick="saveMomEntry('${task.taskId}')" style="flex:2;background:var(--navy2);color:#fff;border:none;border-radius:10px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">✓ Save MOM</button>
+          <button onclick="document.getElementById('mom-form-${task.taskId}').style.display='none'" style="flex:1;background:var(--surface2);color:var(--text2);border:1px solid var(--border);border-radius:10px;padding:9px;font-size:12px;font-weight:700;cursor:pointer;font-family:inherit">Cancel</button>
+        </div>
+      </div>
+      <!-- MOM entries list -->
+      <div id="mom-log-${task.taskId}">
+        ${buildMomLog(task)}
+      </div>
+    </div>
 
     <!-- Location Log -->
     <div style="margin-bottom:12px">
@@ -3898,8 +3951,166 @@ async function archiveFY(fy){
 }
 
 // ═══════════════════════════════════════════
-// LOCATION LOGGING
+// MOM — Minutes of Meeting & Follow-up
 // ═══════════════════════════════════════════
+
+function buildMomLog(task){
+  const entries=(task.momLog||[]);
+  if(!entries.length){
+    return'<div style="font-size:11px;color:var(--text2);padding:8px 10px;background:var(--surface2);border-radius:var(--r);border:1px dashed var(--border);text-align:center">No MOM entries yet · Tap + Add MOM</div>';
+  }
+  // Show newest first, highlight pending follow-ups
+  return entries.slice().reverse().map(function(e,i){
+    const isLast=i===entries.length-1;
+    const today=getToday();
+    const followupDue=e.followupDate&&e.followupDate<=today&&!e.done;
+    const followupFuture=e.followupDate&&e.followupDate>today&&!e.done;
+    const entryId=e.id||('mom_'+i);
+    return`<div style="background:${followupDue?'#fff7ed':'#f8fafc'};border:1px solid ${followupDue?'#fed7aa':'var(--border)'};border-radius:var(--r);padding:10px 12px;margin-bottom:6px${isLast?'':''}" id="momentry-${entryId}">
+      <div style="display:flex;align-items:flex-start;gap:8px">
+        <div style="width:28px;height:28px;border-radius:50%;background:${e.done?'#16a34a':'var(--navy2)'};color:#fff;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0">${e.done?'✓':'📋'}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:11px;font-weight:700;color:var(--navy);line-height:1.5;margin-bottom:4px">${esc(e.notes||'')}</div>
+          ${e.followup?`<div style="background:${followupDue?'#fed7aa':followupFuture?'#ecfeff':'#f1f5f9'};border-radius:8px;padding:5px 8px;margin-bottom:4px;display:flex;align-items:center;gap:6px">
+            <span style="font-size:11px">${followupDue?'⚠️':followupFuture?'📌':'✅'}</span>
+            <span style="font-size:11px;font-weight:700;color:${followupDue?'#92400e':followupFuture?'#155e75':'#475569'}">${esc(e.followup)}</span>
+            ${e.followupDate?`<span style="font-size:10px;color:${followupDue?'#dc2626':'var(--text2)'};font-weight:${followupDue?700:400};margin-left:auto;flex-shrink:0">${e.followupDate}</span>`:''}
+          </div>`:''}
+          <div style="font-size:10px;color:var(--text2);display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <span>🕐 ${esc(e.time||'')}</span>
+            <span>👤 ${esc(e.person||'')}</span>
+            ${!e.done&&e.followup?`<button onclick="markMomDone('${task.taskId}','${entryId}')" style="margin-left:auto;background:#f0fdf4;color:#16a34a;border:1px solid #bbf7d0;border-radius:10px;padding:2px 8px;font-size:10px;font-weight:700;cursor:pointer;font-family:inherit">✓ Done</button>`:''}
+          </div>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openMomForm(taskId){
+  const form=document.getElementById('mom-form-'+taskId);
+  if(!form) return;
+  // Clear form fields
+  const notesEl=document.getElementById('mom-notes-'+taskId);
+  const followupEl=document.getElementById('mom-followup-'+taskId);
+  const dateEl=document.getElementById('mom-date-'+taskId);
+  if(notesEl) notesEl.value='';
+  if(followupEl) followupEl.value='';
+  if(dateEl) dateEl.value='';
+  form.style.display='block';
+  setTimeout(function(){if(notesEl)notesEl.focus();},100);
+}
+
+function saveMomEntry(taskId){
+  const task=tasks.find(function(t){return t.taskId===taskId;});
+  if(!task){showToast('Task not found');return;}
+
+  const notesEl=document.getElementById('mom-notes-'+taskId);
+  const followupEl=document.getElementById('mom-followup-'+taskId);
+  const dateEl=document.getElementById('mom-date-'+taskId);
+
+  const notes=(notesEl?notesEl.value.trim():'');
+  const followup=(followupEl?followupEl.value.trim():'');
+  const followupDate=(dateEl?dateEl.value:'');
+
+  if(!notes){showToast('Enter meeting notes');return;}
+
+  const cfg=getConfig();
+  const person=cfg.name||'Team';
+  const now=new Date();
+  const timeStr=now.toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})
+    +' '+now.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:true});
+
+  const entry={
+    id:'MOM'+Date.now(),
+    notes,
+    followup,
+    followupDate,
+    time:timeStr,
+    person,
+    done:false
+  };
+
+  if(!task.momLog) task.momLog=[];
+  task.momLog.push(entry);
+  task.lastUpdated=new Date().toISOString();
+  saveTasks();
+  pushTask(task);
+
+  // Hide form, refresh log
+  const form=document.getElementById('mom-form-'+taskId);
+  if(form) form.style.display='none';
+  const logEl=document.getElementById('mom-log-'+taskId);
+  if(logEl) logEl.innerHTML=buildMomLog(task);
+
+  showToast('MOM saved ✓');
+}
+
+function markMomDone(taskId, entryId){
+  const task=tasks.find(function(t){return t.taskId===taskId;});
+  if(!task||!task.momLog) return;
+  const entry=task.momLog.find(function(e){return e.id===entryId;});
+  if(entry){
+    entry.done=true;
+    entry.doneAt=new Date().toISOString();
+    task.lastUpdated=new Date().toISOString();
+    saveTasks();
+    pushTask(task);
+    const logEl=document.getElementById('mom-log-'+taskId);
+    if(logEl) logEl.innerHTML=buildMomLog(task);
+    showToast('Follow-up marked done ✓');
+  }
+}
+
+function shareMomWhatsApp(taskId){
+  const task=tasks.find(function(t){return t.taskId===taskId;});
+  if(!task||!task.momLog||!task.momLog.length){showToast('No MOM entries to share');return;}
+
+  const today=new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  let msg='';
+  msg+='📋 *MOM UPDATE — '+task.project.toUpperCase()+'*\n';
+  msg+='*Task:* '+task.title+'\n';
+  msg+='*Status:* '+task.status+'\n';
+  msg+='*Date:* '+today+'\n';
+  msg+='━━━━━━━━━━━━━━━━━━━\n\n';
+
+  // Show all entries newest first
+  const entries=task.momLog.slice().reverse();
+  entries.forEach(function(e,i){
+    msg+='*['+(i+1)+'] '+e.time+'*\n';
+    msg+='👤 '+e.person+'\n';
+    if(e.notes) msg+='📝 '+e.notes+'\n';
+    if(e.followup){
+      const isDone=e.done;
+      const overdue=!isDone&&e.followupDate&&e.followupDate<=getToday();
+      msg+=(isDone?'✅':'📌')+' *Follow-up:* '+e.followup;
+      if(e.followupDate) msg+=' ['+e.followupDate+']';
+      if(isDone) msg+=' — DONE ✓';
+      else if(overdue) msg+=' ⚠ OVERDUE';
+      msg+='\n';
+    }
+    msg+='\n';
+  });
+
+  // Pending follow-ups summary
+  const pending=task.momLog.filter(function(e){return !e.done&&e.followup;});
+  const overdue=pending.filter(function(e){return e.followupDate&&e.followupDate<=getToday();});
+  if(pending.length){
+    msg+='━━━━━━━━━━━━━━━━━━━\n';
+    msg+='*PENDING FOLLOW-UPS: '+pending.length+'*';
+    if(overdue.length) msg+=' (⚠ '+overdue.length+' overdue)';
+    msg+='\n';
+    pending.forEach(function(e){
+      msg+='• '+e.followup+(e.followupDate?' ['+e.followupDate+']':'')+(e.followupDate&&e.followupDate<=getToday()?' ⚠':'')+ '\n';
+    });
+  }
+
+  msg+='━━━━━━━━━━━━━━━━━━━\n';
+  msg+='_TNCD Liaison Task Tracker_';
+
+  const encoded=encodeURIComponent(msg);
+  window.open('https://wa.me/?text='+encoded,'_blank');
+}
 
 function buildLocationLog(task){
   const logs=task.locationLog||[];
